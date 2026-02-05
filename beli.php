@@ -2,7 +2,7 @@
 /* ===============================
    KONEKSI DATABASE
    =============================== */
-$koneksi = mysqli_connect("localhost", "root", "", "tokoabcdefgh");
+$koneksi = mysqli_connect("localhost", "root", "", "tokoabcdefg");
 if (!$koneksi) {
     die("Koneksi database gagal");
 }
