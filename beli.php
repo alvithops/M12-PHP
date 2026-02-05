@@ -1,184 +1,178 @@
 <?php
-// 1. Ambil data keranjang dari cookie
+/* ===============================
+   KONEKSI DATABASE
+   =============================== */
+$koneksi = mysqli_connect("localhost", "root", "", "db_toko");
+if (!$koneksi) {
+    die("Koneksi database gagal");
+}
+
+/* ===============================
+   AMBIL KERANJANG DARI COOKIE
+   =============================== */
 $barangPilih = isset($_COOKIE['keranjang']) ? $_COOKIE['keranjang'] : "0";
 
-// 2. LOGIKA BATAL (DIPERBAIKI: Validasi tipe data ID)
+/* ===============================
+   LOGIKA HAPUS BARANG (GET)
+   =============================== */
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_GET['id'])) {
-    $idHapus = (int) $_GET['id']; // Force ke integer untuk keamanan
-    $identitas = explode(",", $barangPilih);
+    $idHapus = (int) $_GET['id'];
+    $identitas = array_map('intval', explode(",", $barangPilih));
 
-    // Cari dan buang ID yang dipilih
-    if (($key = array_search($idHapus, $identitas)) !== false) {
+    if (($key = array_search($idHapus, $identitas, true)) !== false) {
         unset($identitas[$key]);
     }
 
-    // Filter array untuk membuang elemen kosong/nol
     $identitas = array_filter($identitas);
+    $barangPilih = count($identitas) ? implode(",", $identitas) : "0";
 
-    $barangPilih = count($identitas) > 0 ? implode(",", $identitas) : "0";
-    setcookie('keranjang', $barangPilih, time() + 3600, "/"); // Tambahkan path "/" agar cookie konsisten
-
-    header("Location: " . $_SERVER['PHP_SELF']);
+    setcookie("keranjang", $barangPilih, time() + 3600, "/");
+    header("Location: beli.php");
     exit;
 }
 
-// 3. LOGIKA SIMPAN (POST)
-$namacustErr = $emailErr = $notelpErr = $barangPilihErr = "";
+/* ===============================
+   VALIDASI FORM (POST)
+   =============================== */
 $namacust = $email = $notelp = "";
-$showTable = true;
+$namacustErr = $emailErr = $notelpErr = $barangPilihErr = "";
+$showForm = true;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $namacust = htmlspecialchars(trim($_POST['namacust']));
-    $email = htmlspecialchars(trim($_POST['email']));
-    $notelp = htmlspecialchars(trim($_POST['notelp']));
+    $namacust = trim($_POST['namacust']);
+    $email = trim($_POST['email']);
+    $notelp = trim($_POST['notelp']);
 
-    if (empty($namacust))
-        $namacustErr = "Nama belum diisi";
-    if (empty($email))
-        $emailErr = "Email belum diisi";
-    if (empty($notelp))
-        $notelpErr = "No. Telepon belum diisi";
+    if ($namacust === "")
+        $namacustErr = "Nama wajib diisi";
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL))
+        $emailErr = "Email tidak valid";
+    if ($notelp === "")
+        $notelpErr = "No telepon wajib diisi";
+    if ($barangPilih === "0")
+        $barangPilihErr = "Keranjang masih kosong";
 
-    // Validasi keranjang
-    if ($barangPilih == "0" || empty($barangPilih)) {
-        $barangPilihErr = "<br><small>Keranjang belanja kosong!</small><br>";
-    }
-
-    if (empty($namacustErr) && empty($emailErr) && empty($notelpErr) && empty($barangPilihErr)) {
-        echo "<div style='background:#d4edda; color:#155724; padding:15px; border-radius:5px; margin-bottom:10px;'>
-                <h3>Sukses! Data pembeli <strong>$namacust</strong> telah direkam.</h3>
+    if (!$namacustErr && !$emailErr && !$notelpErr && !$barangPilihErr) {
+        echo "<div style='background:#d4edda;padding:15px;margin-bottom:10px'>
+                <strong>Sukses!</strong> Pembelian atas nama <b>$namacust</b> berhasil disimpan.
               </div>";
 
-        // Hapus cookie di browser (Gunakan path yang sama saat set)
-        setcookie('keranjang', '', time() - 3600, "/");
+        setcookie("keranjang", "", time() - 3600, "/");
         $barangPilih = "0";
-        $showTable = false;
+        $showForm = false;
     }
 }
+
+/* ===============================
+   AMANKAN ID UNTUK QUERY
+   =============================== */
+$ids = array_filter(array_map('intval', explode(",", $barangPilih)), fn($v) => $v > 0);
 ?>
 <!DOCTYPE html>
-<html>
+<html lang="id">
 
 <head>
+    <meta charset="UTF-8">
     <title>Pembelian</title>
     <style>
-        table,
-        td,
-        th {
-            border: 1px solid #ccc;
-            padding: 10px;
-            text-align: left;
+        body {
+            font-family: Arial
+        }
+
+        .container {
+            width: 75%;
+            margin: auto
         }
 
         table {
-            border-collapse: collapse;
             width: 100%;
-            margin-top: 10px;
+            border-collapse: collapse
         }
 
-        .tengah {
-            width: 75%;
-            margin: 20px auto;
-            font-family: Arial, sans-serif;
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 10px
         }
 
         small {
-            color: red;
-            font-style: italic;
+            color: red
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
-
-        button {
-            padding: 10px 20px;
-            cursor: pointer;
+        .btn {
+            padding: 8px 15px;
             background: #28a745;
             color: white;
-            border: none;
-            border-radius: 4px;
-            font-weight: bold;
+            border: none
         }
 
-        button:hover {
-            background: #218838;
-        }
-
-        .btn-batal {
-            color: #dc3545;
-            text-decoration: none;
-            font-weight: bold;
+        .hapus {
+            color: red;
+            text-decoration: none
         }
     </style>
 </head>
 
 <body>
-    <div class="tengah">
-        <?php if ($showTable): ?>
-            <h2>DATA PEMBELI BARANG</h2>
-            <form action="<?php echo htmlspecialchars($_SERVER['PHP_SELF']); ?>" method="post">
-                <div class="form-group">
-                    Nama:<br>
-                    <input type="text" name="namacust" value="<?php echo $namacust; ?>" style="width: 100%; padding: 8px;">
-                    <?php if ($namacustErr)
-                        echo "<br><small>$namacustErr</small>"; ?>
-                </div>
 
-                <div class="form-group">
-                    Email:<br>
-                    <input type="email" name="email" value="<?php echo $email; ?>" style="width: 100%; padding: 8px;">
-                    <?php if ($emailErr)
-                        echo "<br><small>$emailErr</small>"; ?>
-                </div>
+    <div class="container">
 
-                <div class="form-group">
-                    No. Telepon:<br>
-                    <input type="text" name="notelp" value="<?php echo $notelp; ?>" style="width: 100%; padding: 8px;">
-                    <?php if ($notelpErr)
-                        echo "<br><small>$notelpErr</small>"; ?>
-                </div>
+        <?php if ($showForm): ?>
+            <h2>DATA PEMBELI</h2>
+            <form method="post" action="beli.php">
+                Nama<br>
+                <input type="text" name="namacust" value="<?= htmlspecialchars($namacust) ?>"><br>
+                <small><?= $namacustErr ?></small><br><br>
 
-                <button type="submit">Konfirmasi & Simpan Pembelian</button>
+                Email<br>
+                <input type="email" name="email" value="<?= htmlspecialchars($email) ?>"><br>
+                <small><?= $emailErr ?></small><br><br>
+
+                No Telp<br>
+                <input type="text" name="notelp" value="<?= htmlspecialchars($notelp) ?>"><br>
+                <small><?= $notelpErr ?></small><br><br>
+
+                <small><?= $barangPilihErr ?></small><br>
+                <button class="btn">Simpan Pembelian</button>
             </form>
         <?php endif; ?>
 
-        <?php if ($barangPilihErr)
-            echo $barangPilihErr; ?>
         <hr>
 
+        <h2>KERANJANG BELANJA</h2>
+
         <?php
-        require_once 'barang.php';
+        if (count($ids) > 0) {
+            $idList = implode(",", $ids);
+            $query = mysqli_query($koneksi, "SELECT * FROM barang WHERE id IN ($idList)");
 
-        // Logika SQL yang lebih aman: hanya tarik data jika ada ID yang benar-benar dipilih
-        echo "<h2>KERANJANG BELANJA</h2>";
+            echo "<table>
+            <tr>
+                <th>Foto</th>
+                <th>Nama</th>
+                <th>Harga</th>
+                <th>Stok</th>
+                <th>Aksi</th>
+            </tr>";
 
-        if ($barangPilih !== "0" && !empty($barangPilih)) {
-            $sql = "SELECT * FROM barang WHERE id IN ($barangPilih) ORDER BY id DESC";
-            $hasils = bacaBarang($sql);
-
-            if (count($hasils) > 0) {
-                echo "<table>
-                    <tr style='background:#f4f4f4'>
-                        <th>Foto</th><th>Nama Barang</th><th>Harga</th><th>Stok</th><th>Operasi</th>
-                    </tr>";
-                foreach ($hasils as $hasil) {
-                    echo "<tr>
-                        <td><img src='gambar/{$hasil['foto']}' width='80'></td>
-                        <td>{$hasil['nama']}</td>
-                        <td>Rp " . number_format($hasil['harga'], 0, ',', '.') . "</td>
-                        <td>{$hasil['stok']}</td>
-                        <td><a href='{$_SERVER['PHP_SELF']}?id={$hasil['id']}' class='btn-batal' onclick='return confirm(\"Hapus barang ini dari keranjang?\")'>Batal</a></td>
-                      </tr>";
-                }
-                echo "</table>";
-            } else {
-                echo "<p>Barang tidak ditemukan atau sudah dihapus.</p>";
+            while ($row = mysqli_fetch_assoc($query)) {
+                echo "<tr>
+                <td><img src='gambar/{$row['foto']}' width='70'></td>
+                <td>{$row['nama']}</td>
+                <td>Rp " . number_format($row['harga'], 0, ',', '.') . "</td>
+                <td>{$row['stok']}</td>
+                <td>
+                    <a class='hapus' href='beli.php?id={$row['id']}'
+                    onclick='return confirm(\"Hapus barang?\")'>Batal</a>
+                </td>
+              </tr>";
             }
+            echo "</table>";
         } else {
-            echo "<p>Keranjang kosong. <a href='daftar_barang.php'>Klik di sini untuk belanja</a>.</p>";
+            echo "<p>Keranjang kosong.</p>";
         }
         ?>
+
     </div>
 </body>
 
