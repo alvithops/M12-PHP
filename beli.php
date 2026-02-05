@@ -169,7 +169,7 @@ $ids = array_filter(array_map('intval', explode(",", $barangPilih)), fn($v) => $
             }
             echo "</table>";
         } else {
-            echo "<p> kosong.</p>";
+            echo "<p>keranjang kosong kita.</p>";
         }
         ?>
 
